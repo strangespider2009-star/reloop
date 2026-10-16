@@ -1,4 +1,4 @@
-# ReLoop ♻️
+# ReLoop 
 ### The Repair-First Decision Agent
 
 ReLoop helps people choose a replacement component for an existing device, discover listings across the web, and compare options by compatibility, price, and value — before replacing the whole device.
