@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+// Empty in local dev (Vite proxies /api). Set VITE_API_URL to the hosted backend in production.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
 const deviceOptions = {
   Laptop: {
@@ -57,6 +60,9 @@ function App() {
   const [showShortlist, setShowShortlist] = useState(false);
   const choices = deviceOptions[deviceType];
 
+  // Free hosts put the API to sleep when idle; ping it on page load so it is awake by the time the user searches.
+  useEffect(() => { if (API_BASE) fetch(`${API_BASE}/api/health`).catch(() => {}); }, []);
+
   const hasLikely = hardwareResults.some((item) => item.compatibility === "Likely");
   const strictCompat = onlyCompatible && hasLikely;
   const hardwareComponents = useMemo(() => [...new Set(hardwareResults.map((item) => item.component).filter(Boolean))], [hardwareResults]);
@@ -89,7 +95,7 @@ function App() {
     if (problem.trim().length < 5) { setError("Describe what is going wrong (for example: \"battery drains in 30 minutes\" or \"laptop is slow and freezes\")."); return; }
     setLoading(true);
     try {
-      const response = await fetch("/api/diagnose", {
+      const response = await fetch(`${API_BASE}/api/diagnose`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceType, brand, model: model.trim(), component, problem: problem.trim(), country, budget: budget === "" ? null : Number(budget) })
