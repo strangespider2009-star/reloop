@@ -1,9 +1,11 @@
+import { assessCompatibility } from "./compat.js";
+
 const SEARCH_ENDPOINT = "https://api.search.tinyfish.ai";
 const AGENT_ENDPOINT = "https://agent.tinyfish.ai/v1/automation/run";
 
-const currencyByCountry = { IN: "INR", US: "USD", GB: "GBP", CA: "CAD" };
+export const currencyByCountry = { IN: "INR", US: "USD", GB: "GBP", CA: "CAD" };
 
-function safeHttpUrl(value) {
+export function safeHttpUrl(value) {
   try {
     const url = new URL(value);
     return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
@@ -12,11 +14,11 @@ function safeHttpUrl(value) {
   }
 }
 
-function cleanText(value, max = 700) {
+export function cleanText(value, max = 700) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
 
-function parsePrice(text) {
+export function parsePrice(text) {
   if (!text) return null;
   const patterns = [
     /(?:₹|INR\s?)([\d,]+(?:\.\d{1,2})?)/i,
@@ -35,26 +37,25 @@ function parsePrice(text) {
   return null;
 }
 
-function extractPartNumber(text) {
+export function extractPartNumber(text) {
   const match = text.match(/\b(?:part\s*(?:no\.?|number)|p\/n|sku|fru)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._/-]{3,})/i);
   return match ? match[1].slice(0, 60) : null;
 }
 
-function compatibilityAssessment(text, input) {
-  const lower = text.toLowerCase();
-  const model = input.model.toLowerCase();
-  const modelTokens = model.split(/[\s,]+/).filter((token) => token.length >= 3);
-  const matchedTokens = modelTokens.filter((token) => lower.includes(token));
-  if (modelTokens.length && matchedTokens.length === modelTokens.length) {
-    return { compatibility: "Likely", compatibilityEvidence: `Source text includes the supplied model terms: ${matchedTokens.join(", ")}. Verify the exact OEM/FRU part number before buying.` };
-  }
-  if (matchedTokens.length > 0) {
-    return { compatibility: "Unverified", compatibilityEvidence: `Only some model terms were found (${matchedTokens.join(", ")}); exact compatibility is not established.` };
-  }
-  return { compatibility: "Unverified", compatibilityEvidence: "No exact model match was detected in the search result. Confirm with the seller or manufacturer." };
+const compatibilityAssessment = (text, input) => assessCompatibility(text, input);
+
+export function symbolFor(component = "") {
+  if (/battery/i.test(component)) return "▰";
+  if (/screen|display/i.test(component)) return "▣";
+  if (/ssd|storage/i.test(component)) return "◈";
+  if (/ram|memory/i.test(component)) return "▤";
+  if (/fan|cooler/i.test(component)) return "✺";
+  if (/keyboard/i.test(component)) return "⌨";
+  if (/charger|power|port/i.test(component)) return "⌁";
+  return "⌘";
 }
 
-function scoreResult(item, input) {
+export function scoreResult(item, input) {
   let score = item.compatibility === "Likely" ? 50 : 0;
   if (item.price != null) score += 10;
   if (item.partNumber) score += 10;
@@ -65,7 +66,7 @@ function scoreResult(item, input) {
   return score;
 }
 
-function rankResults(items, input) {
+export function rankResults(items, input) {
   const priced = items.filter((item) => item.price != null).sort((a, b) => a.price - b.price);
   const cheapestUrl = priced[0]?.url;
   const withScores = items.map((item) => ({ ...item, _score: scoreResult(item, input) }));
@@ -81,11 +82,11 @@ function rankResults(items, input) {
     if (item.url === value?.url) tags.push("Best Value");
     if (item.url === cheapestUrl) tags.push("Cheapest");
     if (/premium|genuine|oem|official|authorized/i.test(`${item.title} ${item.snippet}`)) tags.push("Premium");
-    return { ...item, tags: tags.length ? tags : ["Best Overall"], symbol: /battery/i.test(input.component) ? "▰" : /screen|display/i.test(input.component) ? "▣" : /ssd|storage/i.test(input.component) ? "◈" : "⌘" };
+    return { ...item, tags: tags.length ? tags : ["Best Overall"], symbol: symbolFor(input.component) };
   }).sort((a, b) => b._score - a._score).map(({ _score, ...item }) => item);
 }
 
-async function tinyfishSearch(query, country) {
+export async function tinyfishSearch(query, country) {
   const url = new URL(SEARCH_ENDPOINT);
   url.searchParams.set("query", query);
   url.searchParams.set("location", country);
@@ -98,7 +99,7 @@ async function tinyfishSearch(query, country) {
   return response.json();
 }
 
-async function enrichListing(url, input) {
+export async function enrichListing(url, input) {
   const goal = `Inspect this product or parts listing for the replacement component request below.
 Device type: ${input.deviceType}
 Brand: ${input.brand}

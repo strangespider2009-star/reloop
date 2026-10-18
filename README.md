@@ -5,6 +5,22 @@ ReLoop helps people choose a replacement component for an existing device, disco
 
 > **Hackathon MVP:** React + Vite frontend, Express API, TinyFish Search integration, optional TinyFish Agent page extraction, and transparent rule-based ranking. Live listings are research leads, not a guarantee of compatibility or stock. Always verify the exact part number and seller details before buying.
 
+## Diagnose flow (describe the problem → software + hardware fixes)
+
+The user picks a device and exact model, then describes the problem in plain words. `POST /api/diagnose`:
+
+1. **Diagnoses** the symptoms (rule-based, `server/src/diagnose.js`) into likely components, e.g. "slow, freezes" → SSD, RAM. If the user picks a component themselves, that wins.
+2. **Software fixes** — TinyFish Search finds model-specific and general troubleshooting guides, ranked official support > model-matching > community. With `TINYFISH_AGENT_ENRICHMENT=true`, TinyFish Agent also extracts the actual steps from the top guides.
+3. **Hardware parts** — TinyFish Search finds listings per component, then `server/src/compat.js` checks each against the user's model:
+   - `Likely` only if the listing names the model's specific number (e.g. `9310`), never just the family name.
+   - Listings that say "not compatible" near the model are hidden.
+   - For RAM/SSD, TinyFish also looks up the model's specs (DDR generation, soldered RAM, M.2 length/NVMe) and hides listings that contradict them (e.g. DDR5 for a DDR4 laptop, M.2 2230 for a 2280 slot).
+   - The UI shows "Compatible with my model only" by default.
+
+Request body: `{ deviceType, brand, model, component (optional, "" = auto), problem, country, budget }`.
+Response: `{ mode, diagnosis, software: { results }, hardware: { components, queries, deviceSpecs, results }, warnings }`.
+Without `TINYFISH_API_KEY` the endpoint returns clearly labelled demo data. `POST /api/search` still works as before.
+
 ## Features
 
 - Guided flow: device category → brand → model → component.
@@ -119,7 +135,9 @@ reloop/
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── tinyfish.js
-│   │   ├── ranking.js
+│   │   ├── diagnose.js      # symptom → components, built-in checklists
+│   │   ├── compat.js        # model + spec compatibility rules
+│   │   ├── solutions.js     # TinyFish orchestration for /api/diagnose
 │   │   └── demo.js
 │   └── test/
 │       └── ranking.test.js
